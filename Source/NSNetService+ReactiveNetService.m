@@ -25,11 +25,30 @@ NetServiceError(NSDictionary *errorDict)
     return [NSError errorWithDomain:domain code:[errorDict[NSNetServicesErrorCode] integerValue] userInfo:@{}];
 }
 
+
 @implementation NSNetService (ReactiveNetService)
+
++ (RACSignal *)rac_resolvedServicesOfType:(NSString *)type inDomain:(NSString *)domainString
+{
+    RACSignal *serviceSignal = [self rac_servicesOfType:type inDomain:domainString];
+    
+    return [[[[serviceSignal map:^RACSignal *(RACSequence *services) {
+        if (!services.head) {
+            return [RACSignal return:[RACTuple new]];
+        }
+        
+        return [RACSignal combineLatest:[services map:^id(NSNetService *s) {
+            return [s rac_resolveWithTimeout:10];
+        }]];
+        
+    }] switchToLatest] distinctUntilChanged] map:^id(RACTuple *resolvedServices) {
+        return resolvedServices.rac_sequence;
+    }];
+}
 
 + (RACSignal *)rac_servicesOfType:(NSString *)type inDomain:(NSString *)domainString
 {
-    return [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+    RACSignal *serviceSignal = [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         
         ReactiveNetServiceBrowserDelegate *delegate = [ReactiveNetServiceBrowserDelegate new];
         NSNetServiceBrowser *browser = [NSNetServiceBrowser new];
@@ -47,6 +66,8 @@ NetServiceError(NSDictionary *errorDict)
             CFRelease(delegatePtr);
         }];
     }];
+    
+    return [[RACSignal return:[RACSequence empty]] concat:serviceSignal];
 }
 
 - (RACSignal *)rac_resolveWithTimeout:(NSTimeInterval)timeout

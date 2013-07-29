@@ -10,7 +10,9 @@
 
 @interface NSNetService (ReactiveNetService)
 
++ (RACSignal *)rac_resolvedServicesOfType:(NSString *)type inDomain:(NSString *)domainString;
 + (RACSignal *)rac_servicesOfType:(NSString *)type inDomain:(NSString *)domainString;
+
 - (RACSignal *)rac_resolveWithTimeout:(NSTimeInterval)timeout;
 
 @end

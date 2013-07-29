@@ -9,7 +9,7 @@
 #import <SenTestingKit/SenTestingKit.h>
 #import "NSNetService+ReactiveNetService.h"
 
-#define TIMEOUT 5
+#define TIMEOUT HUGE_VAL
 
 static void
 _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
@@ -64,6 +64,31 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
     @try {
         WaitUntil(services.array.count == 1);
         STAssertEqualObjects([services.head name], @"Test Service", nil);
+        
+        [_server stop];
+        
+        WaitUntil(services.array.count == 0);
+    }
+    @finally {
+        [disposable dispose];
+    }
+}
+
+- (void)testBrowsingForServicesWithAutomaticResolution
+{
+    __block RACSequence *services;
+    RACDisposable *disposable = [[NSNetService rac_resolvedServicesOfType:_type inDomain:@"local"] subscribeNext:^(id x) {
+        services = x;
+    }];
+    
+    @try {
+        WaitUntil(services.array.count == 1);
+        STAssertEqualObjects([services.head name], @"Test Service", nil);
+        STAssertNotNil([services.head hostName], nil);
+        
+        [_server stop];
+        
+        WaitUntil(services.array.count == 0);
     }
     @finally {
         [disposable dispose];
@@ -73,8 +98,8 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
 - (void)testErrorWhileBrowsingForService
 {
     __block NSError *error;
-    RACDisposable *disposable = [[NSNetService rac_servicesOfType:@"invalidServiceName" inDomain:@"local"] subscribeNext:^(id x) {
-        STFail(@"should not send");
+    RACDisposable *disposable = [[NSNetService rac_servicesOfType:@"invalidServiceName" inDomain:@"local"] subscribeNext:^(RACSequence *x) {
+        STAssertNil(x.head, @"should not send services");
     } error:^(NSError *err) {
         error = err;
     }];
