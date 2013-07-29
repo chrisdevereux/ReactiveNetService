@@ -14,10 +14,16 @@
 @end
 
 @interface ReactiveNetServiceDelegate : NSObject <NSNetServiceDelegate>
-
 - (RACSignal *)resolveNetService:(NSNetService *)service timeout:(NSTimeInterval)timeout;
-
 @end
+
+static NSError *
+NetServiceError(NSDictionary *errorDict)
+{
+    NSString *domain = [errorDict[NSNetServicesErrorDomain] intValue] == kCFStreamErrorDomainNetServices ? RACNetServiceErrorDomain : RACNetServiceSystemErrorDomain;
+    
+    return [NSError errorWithDomain:domain code:[errorDict[NSNetServicesErrorCode] integerValue] userInfo:@{}];
+}
 
 @implementation NSNetService (ReactiveNetService)
 
@@ -97,6 +103,11 @@
     }
 }
 
+- (void)netServiceBrowser:(NSNetServiceBrowser *)aNetServiceBrowser didNotSearch:(NSDictionary *)errorDict
+{
+    [_subject sendError:NetServiceError(errorDict)];
+}
+
 @end
 
 @implementation ReactiveNetServiceDelegate {
@@ -127,4 +138,12 @@
     [_didResolve sendNext:sender];
 }
 
+- (void)netService:(NSNetService *)sender didNotResolve:(NSDictionary *)errorDict
+{
+    [_didResolve sendError:NetServiceError(errorDict)];
+}
+
 @end
+
+NSString *const RACNetServiceErrorDomain = @"RACNetServiceErrorDomain";
+NSString *const RACNetServiceSystemErrorDomain = @"RACNetServiceSystemErrorDomain";

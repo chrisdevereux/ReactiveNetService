@@ -14,3 +14,6 @@
 - (RACSignal *)rac_resolveWithTimeout:(NSTimeInterval)timeout;
 
 @end
+
+OBJC_EXTERN NSString *const RACNetServiceErrorDomain;
+OBJC_EXTERN NSString *const RACNetServiceSystemErrorDomain;

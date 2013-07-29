@@ -51,6 +51,88 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
     [super tearDown];
 }
 
+
+#pragma mark -
+
+- (void)testBrowsingForServices
+{
+    __block RACSequence *services;
+    RACDisposable *disposable = [[NSNetService rac_servicesOfType:_type inDomain:@"local"] subscribeNext:^(id x) {
+        services = x;
+    }];
+    
+    @try {
+        WaitUntil(services.array.count == 1);
+        STAssertEqualObjects([services.head name], @"Test Service", nil);
+    }
+    @finally {
+        [disposable dispose];
+    }
+}
+
+- (void)testErrorWhileBrowsingForService
+{
+    __block NSError *error;
+    RACDisposable *disposable = [[NSNetService rac_servicesOfType:@"invalidServiceName" inDomain:@"local"] subscribeNext:^(id x) {
+        STFail(@"should not send");
+    } error:^(NSError *err) {
+        error = err;
+    }];
+    
+    @try {
+        WaitUntil(error != nil);
+        STAssertEqualObjects(error.domain, RACNetServiceErrorDomain, nil);
+        STAssertEquals(error.code, (NSInteger)-72004, nil);
+    }
+    @finally {
+        [disposable dispose];
+    }
+}
+
+- (void)testResolvingServices
+{
+    NSNetService *service = [self waitForServiceWithName:@"Test Service"];
+    __block NSNetService *resolved;
+    
+    RACDisposable *disposable = [[service rac_resolveWithTimeout:10] subscribeNext:^(NSNetService *x) {
+        resolved = x;
+    }];
+    
+    @try {
+        WaitUntil(resolved != nil);
+        
+        STAssertEquals(resolved, service, nil);
+        STAssertNotNil(resolved.hostName, nil);
+    }
+    @finally {
+        [disposable dispose];
+    }
+    
+}
+
+- (void)testErrorWhileResolvingServices
+{
+    NSNetService *service = [self waitForServiceWithName:@"Test Service"];
+    __block NSError *error;
+    
+    //HACK: need a better way to force service resolution to error
+    RACDisposable *disposable = [[service rac_resolveWithTimeout:0.00001] subscribeNext:^(id x) {
+        STFail(@"should not resolve");
+    } error:^(NSError *err) {
+        error = err;
+    }];
+    
+    @try {
+        WaitUntil(error != nil);
+    }
+    @finally {
+        [disposable dispose];
+    }
+}
+
+
+#pragma mark - Helpers:
+
 - (NSNetService *)waitForServiceWithName:(NSString *)name
 {
     __block NSArray *matchingServices;
@@ -71,37 +153,6 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
     return matchingServices.lastObject;
 }
 
-- (void)testBrowsingForServices
-{
-    __block RACSequence *services;
-    RACDisposable *disposable = [[NSNetService rac_servicesOfType:_type inDomain:@"local"] subscribeNext:^(id x) {
-        services = x;
-    }];
-    
-    @try {
-        WaitUntil(services.array.count == 1);
-        STAssertEqualObjects([services.head name], @"Test Service", nil);
-    }
-    @finally {
-        [disposable dispose];
-    }
-}
-
-- (void)testResolvingServices
-{
-    NSNetService *service = [self waitForServiceWithName:@"Test Service"];
-    __block NSNetService *resolved;
-    
-    [[service rac_resolveWithTimeout:10] subscribeNext:^(NSNetService *x) {
-        resolved = x;
-    }];
-    
-    WaitUntil(resolved != nil);
-    
-    STAssertEquals(resolved, service, nil);
-    STAssertNotNil(resolved.hostName, nil);
-}
-
 
 #pragma mark - Delegate callbacks:
 
@@ -111,6 +162,9 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
 }
 
 @end
+
+
+#pragma mark -
 
 static void
 _WaitUntil(id self, const char *stringified, BOOL(^condition)(void))
