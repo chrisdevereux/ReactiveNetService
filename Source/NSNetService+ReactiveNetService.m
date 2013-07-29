@@ -41,7 +41,7 @@
 #pragma mark - Delegate Implementations:
 
 @implementation ReactiveNetServiceBrowserDelegate {
-    NSMutableSet *_services;
+    NSMutableArray *_services;
 }
 
 - (id)init
@@ -51,7 +51,7 @@
         return nil;
     }
     
-    _services = [NSMutableSet new];
+    _services = [NSMutableArray new];
     _subject = [RACReplaySubject replaySubjectWithCapacity:1];
     
     return self;
@@ -67,7 +67,7 @@
     [_services addObject:aNetService];
     
     if (!moreComing) {
-        [_subject sendNext:_services.allObjects.rac_sequence];
+        [_subject sendNext:[[_services copy] rac_sequence]];
     }
 }
 
@@ -76,7 +76,7 @@
     [_services removeObject:aNetService];
     
     if (!moreComing) {
-        [_subject sendNext:_services.allObjects.rac_sequence];
+        [_subject sendNext:[[_services copy] rac_sequence]];
     }
 }
 
