@@ -7,17 +7,24 @@
 //
 
 #import "NSNetService+ReactiveNetService.h"
+#import <objc/runtime.h>
 
 @interface ReactiveNetServiceBrowserDelegate : NSObject <NSNetServiceBrowserDelegate>
 @property (strong, readonly, nonatomic) RACSubject *subject;
 @end
 
+@interface ReactiveNetServiceDelegate : NSObject <NSNetServiceDelegate>
+
+- (RACSignal *)resolveNetService:(NSNetService *)service timeout:(NSTimeInterval)timeout;
+
+@end
 
 @implementation NSNetService (ReactiveNetService)
 
 + (RACSignal *)rac_servicesOfType:(NSString *)type inDomain:(NSString *)domainString
 {
     return [RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+        
         ReactiveNetServiceBrowserDelegate *delegate = [ReactiveNetServiceBrowserDelegate new];
         NSNetServiceBrowser *browser = [NSNetServiceBrowser new];
         
@@ -34,6 +41,14 @@
             CFRelease(delegatePtr);
         }];
     }];
+}
+
+- (RACSignal *)rac_resolveWithTimeout:(NSTimeInterval)timeout
+{
+    ReactiveNetServiceDelegate *delegate = [self delegate];
+    NSParameterAssert([delegate isKindOfClass:ReactiveNetServiceDelegate.class]);
+    
+    return [delegate resolveNetService:self timeout:timeout];
 }
 
 @end
@@ -57,13 +72,15 @@
     return self;
 }
 
-- (void)dealloc
-{
-    
-}
-
 - (void)netServiceBrowser:(NSNetServiceBrowser *)aNetServiceBrowser didFindService:(NSNetService *)aNetService moreComing:(BOOL)moreComing
 {
+    static void *delegateKey = &delegateKey;
+    
+    ReactiveNetServiceDelegate *delegate = [ReactiveNetServiceDelegate new];
+    
+    aNetService.delegate = delegate;
+    objc_setAssociatedObject(aNetService, delegateKey, delegate, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    
     [_services addObject:aNetService];
     
     if (!moreComing) {
@@ -78,6 +95,36 @@
     if (!moreComing) {
         [_subject sendNext:[[_services copy] rac_sequence]];
     }
+}
+
+@end
+
+@implementation ReactiveNetServiceDelegate {
+    RACSubject *_didResolve;
+    BOOL _resolved;
+}
+
+- (RACSignal *)resolveNetService:(NSNetService *)service timeout:(NSTimeInterval)timeout
+{
+    NSParameterAssert(service.delegate == self);
+    
+    if (_resolved) {
+        return [RACSignal return:service];
+    }
+    if (_didResolve) {
+        return _didResolve;
+    }
+    
+    _didResolve = [RACSubject subject];
+    
+    [service resolveWithTimeout:timeout];
+    return _didResolve;
+}
+
+- (void)netServiceDidResolveAddress:(NSNetService *)sender
+{
+    _resolved = YES;
+    [_didResolve sendNext:sender];
 }
 
 @end

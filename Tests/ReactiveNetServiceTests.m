@@ -51,6 +51,26 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
     [super tearDown];
 }
 
+- (NSNetService *)waitForServiceWithName:(NSString *)name
+{
+    __block NSArray *matchingServices;
+    
+    RACDisposable *disposable = [[NSNetService rac_servicesOfType:_type inDomain:@"local"] subscribeNext:^(RACSequence *x) {
+        matchingServices = [[x filter:^BOOL(NSNetService *x) {
+            return [x.name isEqualToString:name];
+        }] array];
+    }];
+    
+    @try {
+        WaitUntil(matchingServices.count > 0);
+    }
+    @finally {
+        [disposable dispose];
+    }
+    
+    return matchingServices.lastObject;
+}
+
 - (void)testBrowsingForServices
 {
     __block RACSequence *services;
@@ -65,6 +85,21 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
     @finally {
         [disposable dispose];
     }
+}
+
+- (void)testResolvingServices
+{
+    NSNetService *service = [self waitForServiceWithName:@"Test Service"];
+    __block NSNetService *resolved;
+    
+    [[service rac_resolveWithTimeout:10] subscribeNext:^(NSNetService *x) {
+        resolved = x;
+    }];
+    
+    WaitUntil(resolved != nil);
+    
+    STAssertEquals(resolved, service, nil);
+    STAssertNotNil(resolved.hostName, nil);
 }
 
 
