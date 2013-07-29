@@ -67,7 +67,7 @@
     [_services addObject:aNetService];
     
     if (!moreComing) {
-        [_subject sendNext:_services.allObjects];
+        [_subject sendNext:_services.allObjects.rac_sequence];
     }
 }
 
@@ -76,7 +76,7 @@
     [_services removeObject:aNetService];
     
     if (!moreComing) {
-        [_subject sendNext:_services.allObjects];
+        [_subject sendNext:_services.allObjects.rac_sequence];
     }
 }
 

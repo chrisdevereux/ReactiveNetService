@@ -53,14 +53,14 @@ _WaitUntil(id self, const char *stringified, BOOL(^condition)(void));
 
 - (void)testBrowsingForServices
 {
-    __block NSArray *services;
+    __block RACSequence *services;
     RACDisposable *disposable = [[NSNetService rac_servicesOfType:_type inDomain:@"local"] subscribeNext:^(id x) {
         services = x;
     }];
     
     @try {
-        WaitUntil(services.count == 1);
-        STAssertEqualObjects([services.lastObject name], @"Test Service", nil);
+        WaitUntil(services.array.count == 1);
+        STAssertEqualObjects([services.head name], @"Test Service", nil);
     }
     @finally {
         [disposable dispose];
